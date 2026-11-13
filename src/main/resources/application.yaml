@@ -15,6 +15,11 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+    datatype:
+      enum:
+        # Without this a JSON number is read as an enum position: {"sourceSystem": 0} would
+        # create an SDP work order and {"status": 2} would complete one.
+        fail-on-numbers-for-enums: true
 
 server:
   error:

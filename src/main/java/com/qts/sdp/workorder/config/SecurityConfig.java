@@ -26,6 +26,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtIss
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.StringUtils;
 
+import com.qts.sdp.workorder.security.PemKeys;
+import com.qts.sdp.workorder.security.PermissionsJwtConverter;
 import com.qts.sdp.workorder.security.SecurityProblemWriter;
 
 /**

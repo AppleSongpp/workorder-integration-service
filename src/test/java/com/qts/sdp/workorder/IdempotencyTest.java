@@ -52,7 +52,7 @@ class IdempotencyTest extends IntegrationTest {
         String key = newKey();
         String body = createBody("SDP", "idem-original-" + key);
         String original = postWorkOrder(SDP, key, body).andReturn().getResponse().getContentAsString();
-        String id = json(original).get("id").asText();
+        String id = json(original).get("id").asString();
         patchStatus(TestCaller.SDP, id, "IN_PROGRESS").andExpect(status().isOk());
 
         postWorkOrder(SDP, key, body)
@@ -74,7 +74,7 @@ class IdempotencyTest extends IntegrationTest {
         postWorkOrder(SDP, key, reordered)
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Idempotency-Replayed", "true"))
-                .andExpect(jsonPath("$.id").value(json(first).get("id").asText()));
+                .andExpect(jsonPath("$.id").value(json(first).get("id").asString()));
         assertThat(countWorkOrdersWithDescription(description)).isEqualTo(1);
     }
 
@@ -104,7 +104,7 @@ class IdempotencyTest extends IntegrationTest {
                 .andExpect(header().string("Idempotency-Replayed", "false"))
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(json(qtsosResponse).get("id").asText()).isNotEqualTo(json(sdpResponse).get("id").asText());
+        assertThat(json(qtsosResponse).get("id").asString()).isNotEqualTo(json(sdpResponse).get("id").asString());
     }
 
     @Test
@@ -139,6 +139,6 @@ class IdempotencyTest extends IntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Idempotency-Replayed", "false"))
                 .andReturn().getResponse().getContentAsString();
-        assertThat(json(afterExpiry).get("id").asText()).isNotEqualTo(json(first).get("id").asText());
+        assertThat(json(afterExpiry).get("id").asString()).isNotEqualTo(json(first).get("id").asString());
     }
 }

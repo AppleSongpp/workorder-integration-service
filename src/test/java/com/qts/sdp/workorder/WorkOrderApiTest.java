@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -141,17 +141,17 @@ class WorkOrderApiTest extends IntegrationTest {
         List<String> payloads = outboxPayloads(id);
         assertThat(payloads).hasSize(2);
         JsonNode first = json(payloads.get(0));
-        assertThat(first.get("eventId").asText()).isNotBlank();
-        assertThat(first.get("eventType").asText()).isEqualTo("WorkOrderStatusChanged");
-        assertThat(first.get("workOrderId").asText()).isEqualTo(id);
-        assertThat(first.get("sourceSystem").asText()).isEqualTo("SDP");
-        assertThat(first.get("previousStatus").asText()).isEqualTo("OPEN");
-        assertThat(first.get("newStatus").asText()).isEqualTo("IN_PROGRESS");
+        assertThat(first.get("eventId").asString()).isNotBlank();
+        assertThat(first.get("eventType").asString()).isEqualTo("WorkOrderStatusChanged");
+        assertThat(first.get("workOrderId").asString()).isEqualTo(id);
+        assertThat(first.get("sourceSystem").asString()).isEqualTo("SDP");
+        assertThat(first.get("previousStatus").asString()).isEqualTo("OPEN");
+        assertThat(first.get("newStatus").asString()).isEqualTo("IN_PROGRESS");
         assertThat(first.get("workOrderVersion").asLong()).isEqualTo(2);
         JsonNode second = json(payloads.get(1));
-        assertThat(second.get("newStatus").asText()).isEqualTo("COMPLETED");
+        assertThat(second.get("newStatus").asString()).isEqualTo("COMPLETED");
         assertThat(second.get("workOrderVersion").asLong()).isEqualTo(3);
-        assertThat(second.get("eventId").asText()).isNotEqualTo(first.get("eventId").asText());
+        assertThat(second.get("eventId").asString()).isNotEqualTo(first.get("eventId").asString());
     }
 
     // ---- invalid input ----
@@ -187,6 +187,9 @@ class WorkOrderApiTest extends IntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "{\"sourceSystem\":\"UNKNOWN\",\"description\":\"d\"}",
+            // a number must not be read as an enum position (0 = SDP, 1 = QTSOS)
+            "{\"sourceSystem\":0,\"description\":\"d\"}",
+            "{\"sourceSystem\":1,\"description\":\"d\"}",
             "{\"sourceSystem\":\"SDP\",\"description\":\"d\",\"status\":\"COMPLETED\"}",
             "{\"sourceSystem\":\"SDP\",\"description\":\"d\",\"id\":\"WO-1\"}",
             "{\"sourceSystem\":\"SDP\",",
@@ -223,7 +226,8 @@ class WorkOrderApiTest extends IntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"{}", "{\"status\":\"CANCELLED\"}", "{\"status\":\"OPEN\",\"version\":0}", "not json"})
+    @ValueSource(strings = {"{}", "{\"status\":\"CANCELLED\"}", "{\"status\":1}",
+            "{\"status\":\"OPEN\",\"version\":0}", "not json"})
     void rejectsInvalidStatusRequest(String body) throws Exception {
         String id = givenWorkOrder(TestCaller.SDP, "SDP");
 

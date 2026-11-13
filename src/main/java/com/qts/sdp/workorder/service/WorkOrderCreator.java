@@ -3,8 +3,8 @@ package com.qts.sdp.workorder.service;
 import java.time.Clock;
 import java.time.Instant;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -70,7 +70,7 @@ public class WorkOrderCreator {
     private String toJson(WorkOrderView view) {
         try {
             return objectMapper.writeValueAsString(view);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Could not serialize work order " + view.id(), e);
         }
     }

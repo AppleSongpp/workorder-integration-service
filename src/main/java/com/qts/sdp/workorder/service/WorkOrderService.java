@@ -5,8 +5,8 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,7 +161,7 @@ public class WorkOrderService {
                 WorkOrderId.format(stored.getWorkOrderId()), caller.clientId(), idempotencyKey);
         try {
             return new CreationResult(objectMapper.readValue(stored.getResponseBody(), WorkOrderView.class), true);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Stored idempotent response is unreadable", e);
         }
     }

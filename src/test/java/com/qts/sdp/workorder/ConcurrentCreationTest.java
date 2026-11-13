@@ -48,7 +48,7 @@ class ConcurrentCreationTest extends IntegrationTest {
         int createdNow = 0;
         for (HttpResponse<String> response : responses) {
             assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
-            ids.add(json(response.body()).get("id").asText());
+            ids.add(json(response.body()).get("id").asString());
             if ("false".equals(response.headers().firstValue("Idempotency-Replayed").orElseThrow())) {
                 createdNow++;
             }

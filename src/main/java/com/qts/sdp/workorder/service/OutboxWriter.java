@@ -1,7 +1,7 @@
 package com.qts.sdp.workorder.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 
@@ -37,7 +37,7 @@ public class OutboxWriter {
     private String toJson(WorkOrderStatusChangedEvent event) {
         try {
             return objectMapper.writeValueAsString(event);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Could not serialize event " + event.eventId(), e);
         }
     }
