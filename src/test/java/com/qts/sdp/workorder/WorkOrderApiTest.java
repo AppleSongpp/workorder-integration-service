@@ -227,7 +227,9 @@ class WorkOrderApiTest extends IntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"status\":\"CANCELLED\"}", "{\"status\":1}",
-            "{\"status\":\"OPEN\",\"version\":0}", "not json"})
+            "{\"status\":\"OPEN\",\"version\":0}",
+            // a decimal version must not be truncated to the version it starts with
+            "{\"status\":\"OPEN\",\"version\":1.7}", "{\"status\":\"OPEN\",\"version\":1.0}", "not json"})
     void rejectsInvalidStatusRequest(String body) throws Exception {
         String id = givenWorkOrder(TestCaller.SDP, "SDP");
 
