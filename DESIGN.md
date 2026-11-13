@@ -82,6 +82,21 @@ for a create, the **stored** owner for read and status change. Nothing is read f
 parameters or custom headers. Failures return a generic 401 or 403; the reason is only logged,
 and tokens are never logged.
 
+**Permission strings are matched case-insensitively.** `WORKORDERS:READ:sdp` grants the same as
+`workorders:read:SDP` (`Permission.parse`). Identity providers and their admins are not
+consistent about the case of scope and role names, and a case mismatch would otherwise lock a
+caller out with no visible reason. It cannot widen access: the value must still match
+`workorders:<read|write>:<known source system>` exactly, so wildcards, partial names and unknown
+systems grant nothing. If the IdP treats scope names as case-sensitive and distinct, switch to an
+exact match.
+
+**Existence leak (known trade-off).** A caller that lacks read access gets `403` for a work
+order that exists and `404` for one that does not, so it can learn which ids exist (ids are
+sequential, so this is enumerable) but nothing about their content. I kept `403` because the
+callers are trusted internal services and a clear "not allowed" is easier to diagnose than a
+misleading "not found". Where existence itself is sensitive, return `404` in both cases: a
+small change in `WorkOrderService.get`.
+
 **Adapting to real Okta and Entra.** Mostly configuration:
 
 | | Okta | Entra ID |
@@ -162,8 +177,7 @@ the test fails.
 - The service generates work order ids (`WO-<sequence>`); clients do not supply them.
 - `SDP` and `QTSOS` are the only source systems; ServiceNow is a caller, not an owner.
 - SDP and QTSOS authenticate through Okta, ServiceNow through Entra.
-- A caller without read access to an existing work order gets 403 (not 404). This reveals that
-  the id exists; acceptable for trusted internal callers, easy to change.
+- Callers are trusted internal services, which is why the existence leak in §3 is accepted.
 
 **Not done**
 

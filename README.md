@@ -31,6 +31,7 @@ full application with an in-memory database and real, locally signed tokens).
 | `AuthorizationTest` | read/write permission matrix and source-system restrictions for all three callers |
 | `IdempotencyTest` | repeated requests, payload conflict, key scope, expiry |
 | `ConcurrentCreationTest` | parallel requests with one key create exactly one work order |
+| `ErrorFormatTest` | errors raised outside the controllers (URL rejected by Tomcat, unknown path) use the problem format |
 | `RestartPersistenceTest` | idempotency keys survive an application restart (file database) |
 | `WorkOrderStatusTest`, `PermissionTest` | transition table and permission parsing |
 
