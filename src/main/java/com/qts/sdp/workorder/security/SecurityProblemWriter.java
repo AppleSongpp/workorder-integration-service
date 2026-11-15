@@ -17,6 +17,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.firewall.RequestRejectedException;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.stereotype.Component;
 
 import com.qts.sdp.workorder.exception.Problems;
@@ -26,9 +28,15 @@ import com.qts.sdp.workorder.exception.Problems;
  * The client always gets the same generic body: why a token was rejected (expired, bad
  * signature, unknown issuer, ...) is useful to an attacker, so it is only written to the log.
  * Tokens themselves are never logged.
+ *
+ * <p>Also renders requests that the security firewall refuses before authentication, such as
+ * a URL with an encoded line break or a semicolon. Spring Security finds this bean by its
+ * {@link RequestRejectedHandler} type. Without it the firewall's 400 is forwarded to
+ * {@code /error}, which the filter chain denies, and the caller gets a misleading 401.
  */
 @Component
-public class SecurityProblemWriter implements AuthenticationEntryPoint, AccessDeniedHandler {
+public class SecurityProblemWriter
+        implements AuthenticationEntryPoint, AccessDeniedHandler, RequestRejectedHandler {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityProblemWriter.class);
 
@@ -54,6 +62,14 @@ public class SecurityProblemWriter implements AuthenticationEntryPoint, AccessDe
             AccessDeniedException exception) throws IOException {
         log.warn("Access denied by filter chain: method={} path={}", request.getMethod(), request.getRequestURI());
         write(response, HttpStatus.FORBIDDEN, "ACCESS_DENIED", "You are not allowed to perform this operation.");
+    }
+
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response,
+            RequestRejectedException exception) throws IOException {
+        log.warn("Request rejected by firewall: method={} path={} reason=\"{}\"",
+                request.getMethod(), request.getRequestURI(), exception.getMessage());
+        write(response, HttpStatus.BAD_REQUEST, "BAD_REQUEST", "The request is malformed.");
     }
 
     private void write(HttpServletResponse response, HttpStatus status, String code, String detail)

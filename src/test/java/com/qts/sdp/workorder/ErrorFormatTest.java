@@ -40,6 +40,25 @@ class ErrorFormatTest extends IntegrationTest {
         assertThat(response.body()).doesNotContainIgnoringCase("html").doesNotContainIgnoringCase("tomcat");
     }
 
+    /**
+     * Spring Security's firewall rejects these before authentication. The caller's token is
+     * valid, so the answer must be "bad request", not "unauthenticated".
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/workorders/WO-1001%0A", "/api/workorders/WO-1001%0D",
+            "/api/workorders/WO-1001;x=1"})
+    void urlRejectedByTheSecurityFirewallIsABadRequestNotAnAuthenticationFailure(String path) throws Exception {
+        HttpResponse<String> response = get(path);
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.headers().firstValue("Content-Type").orElseThrow())
+                .startsWith("application/problem+json");
+        assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
+        JsonNode problem = json(response.body());
+        assertThat(problem.get("code").asString()).isEqualTo("BAD_REQUEST");
+        assertThat(problem.get("detail").asString()).isEqualTo("The request is malformed.");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/api/workorders/WO-1001/", "/api/workorders/", "/api/workorders/WO-1001/a/b"})
     void pathWithoutAnEndpointIsAPlainNotFound(String path) throws Exception {
