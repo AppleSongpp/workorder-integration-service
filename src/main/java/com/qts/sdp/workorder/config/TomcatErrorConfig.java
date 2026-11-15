@@ -1,5 +1,7 @@
 package com.qts.sdp.workorder.config;
 
+import tools.jackson.databind.ObjectMapper;
+
 import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -18,8 +20,8 @@ public class TomcatErrorConfig {
      */
     @Bean
     @Order(Ordered.LOWEST_PRECEDENCE)
-    WebServerFactoryCustomizer<TomcatServletWebServerFactory> problemErrorReportValve() {
+    WebServerFactoryCustomizer<TomcatServletWebServerFactory> problemErrorReportValve(ObjectMapper objectMapper) {
         return factory -> factory.addContextCustomizers(
-                context -> context.getParent().getPipeline().addValve(new ProblemErrorReportValve()));
+                context -> context.getParent().getPipeline().addValve(new ProblemErrorReportValve(objectMapper)));
     }
 }

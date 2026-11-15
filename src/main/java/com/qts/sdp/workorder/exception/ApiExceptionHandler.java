@@ -33,17 +33,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(WorkOrderNotFoundException.class)
     ProblemDetail notFound(WorkOrderNotFoundException e) {
-        return problem(HttpStatus.NOT_FOUND, "WORK_ORDER_NOT_FOUND", "Work order not found.");
+        return Problems.of(HttpStatus.NOT_FOUND, "WORK_ORDER_NOT_FOUND", "Work order not found.");
     }
 
     @ExceptionHandler(SourceSystemAccessDeniedException.class)
     ProblemDetail forbidden(SourceSystemAccessDeniedException e) {
-        return problem(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "You are not allowed to perform this operation.");
+        return Problems.of(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "You are not allowed to perform this operation.");
     }
 
     @ExceptionHandler(InvalidStatusTransitionException.class)
     ProblemDetail invalidTransition(InvalidStatusTransitionException e) {
-        ProblemDetail problem = problem(HttpStatus.CONFLICT, "INVALID_STATUS_TRANSITION", e.getMessage() + ".");
+        ProblemDetail problem = Problems.of(HttpStatus.CONFLICT, "INVALID_STATUS_TRANSITION", e.getMessage() + ".");
         problem.setProperty("currentStatus", e.getFrom());
         problem.setProperty("allowedStatuses", e.getFrom().allowedTargets().stream().sorted().toList());
         return problem;
@@ -51,38 +51,38 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(VersionConflictException.class)
     ProblemDetail versionConflict(VersionConflictException e) {
-        return problem(HttpStatus.CONFLICT, "VERSION_CONFLICT", e.getMessage() + ". Re-read it and retry.");
+        return Problems.of(HttpStatus.CONFLICT, "VERSION_CONFLICT", e.getMessage() + ". Re-read it and retry.");
     }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     ProblemDetail concurrentModification(ObjectOptimisticLockingFailureException e) {
-        return problem(HttpStatus.CONFLICT, "VERSION_CONFLICT",
+        return Problems.of(HttpStatus.CONFLICT, "VERSION_CONFLICT",
                 "The work order was modified concurrently. Re-read it and retry.");
     }
 
     @ExceptionHandler(IdempotencyKeyReuseException.class)
     ProblemDetail idempotencyKeyReuse(IdempotencyKeyReuseException e) {
-        return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
+        return Problems.of(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
                 "This Idempotency-Key was already used with a different request payload. "
                         + "Use a new key for a new request.");
     }
 
     @ExceptionHandler(RequestInProgressException.class)
     ResponseEntity<ProblemDetail> requestInProgress(RequestInProgressException e) {
-        ProblemDetail problem = problem(HttpStatus.CONFLICT, "REQUEST_IN_PROGRESS",
+        ProblemDetail problem = Problems.of(HttpStatus.CONFLICT, "REQUEST_IN_PROGRESS",
                 "A request with this Idempotency-Key is still being processed. Retry shortly with the same key.");
         return ResponseEntity.status(HttpStatus.CONFLICT).header(HttpHeaders.RETRY_AFTER, "1").body(problem);
     }
 
     @ExceptionHandler(InvalidIdempotencyKeyException.class)
     ProblemDetail invalidIdempotencyKey(InvalidIdempotencyKeyException e) {
-        return problem(HttpStatus.BAD_REQUEST, "INVALID_IDEMPOTENCY_KEY", e.getMessage() + ".");
+        return Problems.of(HttpStatus.BAD_REQUEST, "INVALID_IDEMPOTENCY_KEY", e.getMessage() + ".");
     }
 
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpected(Exception e) {
         log.error("Unhandled error", e);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred.");
+        return Problems.of(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred.");
     }
 
     @Override
@@ -92,7 +92,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 .map(error -> Map.of("field", error.getField(), "message", String.valueOf(error.getDefaultMessage())))
                 .sorted((a, b) -> a.get("field").compareTo(b.get("field")))
                 .toList();
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Request validation failed.");
+        ProblemDetail problem = Problems.of(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Request validation failed.");
         problem.setProperty("errors", errors);
         return handleExceptionInternal(e, problem, headers, status, request);
     }
@@ -101,7 +101,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException e,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         // The parser message can echo input and class names; keep it out of the response.
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST",
+        ProblemDetail problem = Problems.of(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST",
                 "The request body is missing, is not valid JSON, or contains an unknown field or value.");
         return handleExceptionInternal(e, problem, headers, status, request);
     }
@@ -123,7 +123,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private static ProblemDetail noSuchEndpoint() {
-        return problem(HttpStatus.NOT_FOUND, "NOT_FOUND", "The requested resource was not found.");
+        return Problems.of(HttpStatus.NOT_FOUND, "NOT_FOUND", "The requested resource was not found.");
     }
 
     /** Adds a {@code code} to the problem documents produced by the base class. */
@@ -137,12 +137,5 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty("code", resolved != null ? resolved.name() : "ERROR");
         }
         return response;
-    }
-
-    private static ProblemDetail problem(HttpStatus status, String code, String detail) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setTitle(status.getReasonPhrase());
-        problem.setProperty("code", code);
-        return problem;
     }
 }

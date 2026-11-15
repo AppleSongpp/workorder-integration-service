@@ -133,11 +133,13 @@ Packaged by layer:
 src/main/java/com/qts/sdp/workorder
   controller/   REST endpoints
   dto/          request/response bodies and objects passed between layers
-  service/      use cases, transactions, idempotency, access policy, outbox writer
+  service/      use cases (WorkOrderService), the create transaction (WorkOrderCreator),
+                idempotency records (IdempotencyService), access policy, outbox writer
   repository/   Spring Data repositories
-  model/        JPA entities, status lifecycle, source systems
+  model/        JPA entities, status lifecycle, source systems, IdempotencyKey value type
   event/        WorkOrderStatusChanged event
-  exception/    business exceptions and the global error-response mapping
+  exception/    business exceptions, the global error-response mapping, and Problems,
+                the single factory for the error body
   security/     caller identity, permissions, JWT claim mapping, 401/403 rendering
   config/       security filter chain and typed configuration properties
 src/main/resources/db/migration   Flyway schema

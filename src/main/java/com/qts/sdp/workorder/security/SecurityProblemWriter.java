@@ -19,6 +19,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
+import com.qts.sdp.workorder.exception.Problems;
+
 /**
  * Renders authentication and authorization failures raised by the security filter chain.
  * The client always gets the same generic body: why a token was rejected (expired, bad
@@ -56,9 +58,7 @@ public class SecurityProblemWriter implements AuthenticationEntryPoint, AccessDe
 
     private void write(HttpServletResponse response, HttpStatus status, String code, String detail)
             throws IOException {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setTitle(status.getReasonPhrase());
-        problem.setProperty("code", code);
+        ProblemDetail problem = Problems.of(status, code, detail);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), problem);

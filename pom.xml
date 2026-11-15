@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example</groupId>
+    <groupId>com.qts.sdp</groupId>
     <artifactId>workorder-integration-service</artifactId>
     <version>0.1.0</version>
     <name>workorder-integration-service</name>
@@ -74,7 +74,7 @@
             <!--
               Runs the local token generator. It lives in src/test so that code able to
               mint tokens is never packaged into the deployable jar.
-              Usage: ./mvnw -q test-compile exec:java -Dexec.args="sdp"
+              Usage: mvn -q test-compile exec:java -Dexec.args="sdp"
             -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

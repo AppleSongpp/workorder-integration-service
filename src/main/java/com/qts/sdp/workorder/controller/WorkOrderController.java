@@ -1,7 +1,6 @@
 package com.qts.sdp.workorder.controller;
 
 import java.net.URI;
-import java.util.regex.Pattern;
 
 import jakarta.validation.Valid;
 
@@ -21,7 +20,7 @@ import com.qts.sdp.workorder.dto.CreateWorkOrderRequest;
 import com.qts.sdp.workorder.dto.CreationResult;
 import com.qts.sdp.workorder.dto.UpdateStatusRequest;
 import com.qts.sdp.workorder.dto.WorkOrderResponse;
-import com.qts.sdp.workorder.exception.InvalidIdempotencyKeyException;
+import com.qts.sdp.workorder.model.IdempotencyKey;
 import com.qts.sdp.workorder.security.Caller;
 import com.qts.sdp.workorder.service.WorkOrderService;
 
@@ -31,8 +30,6 @@ public class WorkOrderController {
 
     static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
     static final String IDEMPOTENCY_REPLAYED_HEADER = "Idempotency-Replayed";
-
-    private static final Pattern IDEMPOTENCY_KEY_FORMAT = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
 
     private final WorkOrderService service;
 
@@ -45,10 +42,7 @@ public class WorkOrderController {
             @RequestHeader(IDEMPOTENCY_KEY_HEADER) String idempotencyKey,
             @Valid @RequestBody CreateWorkOrderRequest request,
             JwtAuthenticationToken authentication) {
-        if (!IDEMPOTENCY_KEY_FORMAT.matcher(idempotencyKey).matches()) {
-            throw new InvalidIdempotencyKeyException();
-        }
-        CreationResult result = service.create(Caller.from(authentication), idempotencyKey,
+        CreationResult result = service.create(Caller.from(authentication), IdempotencyKey.parse(idempotencyKey),
                 new CreateWorkOrderCommand(request.sourceSystem(), request.description()));
 
         // A replay returns exactly what the first request returned: 201 and the original body.

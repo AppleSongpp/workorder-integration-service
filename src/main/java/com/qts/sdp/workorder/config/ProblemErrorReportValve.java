@@ -4,12 +4,17 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.catalina.valves.ErrorReportValve;
 import org.apache.coyote.ActionCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+
+import com.qts.sdp.workorder.exception.Problems;
 
 /**
  * Renders errors that Tomcat raises itself as a problem document instead of its HTML page.
@@ -20,6 +25,12 @@ import org.springframework.http.MediaType;
  * <p>The body is fixed text per status. Nothing from the request is echoed.
  */
 public class ProblemErrorReportValve extends ErrorReportValve {
+
+    private final ObjectMapper objectMapper;
+
+    public ProblemErrorReportValve(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     protected void report(Request request, Response response, Throwable throwable) {
@@ -40,18 +51,19 @@ public class ProblemErrorReportValve extends ErrorReportValve {
                 writer.write(body(statusCode));
                 response.finishResponse();
             }
-        } catch (IOException | IllegalStateException e) {
+        } catch (IOException | IllegalStateException | JacksonException e) {
             // The client is gone or the response is already being written; nothing to report to.
         }
     }
 
-    /** Same shape as the problem documents written by the application: detail, status, title, code. */
-    static String body(int statusCode) {
+    private String body(int statusCode) {
         HttpStatus status = HttpStatus.resolve(statusCode);
-        String title = status != null ? status.getReasonPhrase() : "Error";
-        String code = status != null ? status.name() : "ERROR";
-        String detail = statusCode == 400 ? "The request is malformed." : "The request could not be processed.";
-        return "{\"detail\":\"" + detail + "\",\"status\":" + statusCode
-                + ",\"title\":\"" + title + "\",\"code\":\"" + code + "\"}";
+        if (status == null) {
+            status = statusCode < 500 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        String detail = status == HttpStatus.BAD_REQUEST
+                ? "The request is malformed."
+                : "The request could not be processed.";
+        return objectMapper.writeValueAsString(Problems.of(status, status.name(), detail));
     }
 }

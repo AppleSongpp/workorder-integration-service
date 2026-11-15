@@ -5,13 +5,10 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.ConcurrencyFailureException;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +20,10 @@ import com.qts.sdp.workorder.exception.IdempotencyKeyReuseException;
 import com.qts.sdp.workorder.exception.RequestInProgressException;
 import com.qts.sdp.workorder.exception.VersionConflictException;
 import com.qts.sdp.workorder.exception.WorkOrderNotFoundException;
-import com.qts.sdp.workorder.model.IdempotencyRecord;
+import com.qts.sdp.workorder.model.IdempotencyKey;
 import com.qts.sdp.workorder.model.WorkOrder;
 import com.qts.sdp.workorder.model.WorkOrderId;
 import com.qts.sdp.workorder.model.WorkOrderStatus;
-import com.qts.sdp.workorder.repository.IdempotencyRecordRepository;
 import com.qts.sdp.workorder.repository.WorkOrderRepository;
 import com.qts.sdp.workorder.security.Caller;
 
@@ -37,22 +33,19 @@ public class WorkOrderService {
     private static final Logger log = LoggerFactory.getLogger(WorkOrderService.class);
 
     private final WorkOrderRepository workOrders;
-    private final IdempotencyRecordRepository idempotencyRecords;
+    private final IdempotencyService idempotency;
     private final WorkOrderCreator creator;
     private final WorkOrderAccessPolicy accessPolicy;
     private final OutboxWriter outbox;
-    private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public WorkOrderService(WorkOrderRepository workOrders, IdempotencyRecordRepository idempotencyRecords,
-            WorkOrderCreator creator, WorkOrderAccessPolicy accessPolicy, OutboxWriter outbox,
-            ObjectMapper objectMapper, Clock clock) {
+    public WorkOrderService(WorkOrderRepository workOrders, IdempotencyService idempotency,
+            WorkOrderCreator creator, WorkOrderAccessPolicy accessPolicy, OutboxWriter outbox, Clock clock) {
         this.workOrders = workOrders;
-        this.idempotencyRecords = idempotencyRecords;
+        this.idempotency = idempotency;
         this.creator = creator;
         this.accessPolicy = accessPolicy;
         this.outbox = outbox;
-        this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
@@ -66,34 +59,34 @@ public class WorkOrderService {
      * @throws IdempotencyKeyReuseException if the key was used before with a different payload
      * @throws RequestInProgressException   if the first request with this key has not finished yet
      */
-    public CreationResult create(Caller caller, String idempotencyKey, CreateWorkOrderCommand command) {
+    public CreationResult create(Caller caller, IdempotencyKey key, CreateWorkOrderCommand command) {
         // Authorize first: a replay must not hand out data to a caller whose grant was removed.
         accessPolicy.requireWrite(caller, command.sourceSystem());
         String requestHash = RequestFingerprint.of(command);
 
-        Optional<IdempotencyRecord> existing = findRecord(caller, idempotencyKey);
-        if (existing.isPresent()) {
-            return replay(caller, idempotencyKey, existing.get(), requestHash);
+        Optional<WorkOrderView> original = idempotency.findOriginalResponse(caller, key, requestHash);
+        if (original.isPresent()) {
+            return new CreationResult(original.get(), true);
         }
 
         try {
-            WorkOrderView created = creator.createAndRecord(caller, idempotencyKey, requestHash, command);
+            WorkOrderView created = creator.createAndRecord(caller, key, requestHash, command);
             log.info("Work order created: id={} sourceSystem={} client={} idempotencyKey={}",
-                    created.id(), created.sourceSystem(), caller.clientId(), idempotencyKey);
+                    created.id(), created.sourceSystem(), caller.clientId(), key);
             return new CreationResult(created, false);
-        } catch (DataAccessException e) {
-            // Expected cause: a concurrent request with the same key. Its insert made ours wait
-            // and then fail on the unique constraint, rolling back our work order. Whatever the
-            // exact failure, a committed record for this key is the authoritative result.
-            Optional<IdempotencyRecord> winner = findRecord(caller, idempotencyKey);
-            if (winner.isPresent()) {
-                return replay(caller, idempotencyKey, winner.get(), requestHash);
-            }
-            if (e instanceof ConcurrencyFailureException) {
-                // Lock timeout or deadlock while the other request is still running.
-                throw new RequestInProgressException(e);
-            }
-            throw e;
+        } catch (DataIntegrityViolationException e) {
+            // A concurrent request with the same key committed first: our insert waited for it,
+            // then failed on the unique constraint, rolling back our work order. Its result is
+            // the answer. Any other constraint violation leaves no record and is rethrown.
+            return idempotency.findOriginalResponse(caller, key, requestHash)
+                    .map(winner -> new CreationResult(winner, true))
+                    .orElseThrow(() -> e);
+        } catch (ConcurrencyFailureException e) {
+            // Lock timeout or deadlock while waiting for the other request. It may have finished
+            // in the meantime; if not, the client should retry with the same key.
+            return idempotency.findOriginalResponse(caller, key, requestHash)
+                    .map(winner -> new CreationResult(winner, true))
+                    .orElseThrow(() -> new RequestInProgressException(e));
         }
     }
 
@@ -144,25 +137,5 @@ public class WorkOrderService {
         return WorkOrderId.parse(externalId)
                 .flatMap(workOrders::findById)
                 .orElseThrow(WorkOrderNotFoundException::new);
-    }
-
-    private Optional<IdempotencyRecord> findRecord(Caller caller, String idempotencyKey) {
-        return idempotencyRecords.findByClientIdAndIdempotencyKey(caller.clientId(), idempotencyKey);
-    }
-
-    private CreationResult replay(Caller caller, String idempotencyKey, IdempotencyRecord stored,
-            String requestHash) {
-        if (!stored.getRequestHash().equals(requestHash)) {
-            log.warn("Idempotency key reused with a different payload: client={} idempotencyKey={}",
-                    caller.clientId(), idempotencyKey);
-            throw new IdempotencyKeyReuseException();
-        }
-        log.info("Idempotent replay: id={} client={} idempotencyKey={}",
-                WorkOrderId.format(stored.getWorkOrderId()), caller.clientId(), idempotencyKey);
-        try {
-            return new CreationResult(objectMapper.readValue(stored.getResponseBody(), WorkOrderView.class), true);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Stored idempotent response is unreadable", e);
-        }
     }
 }
